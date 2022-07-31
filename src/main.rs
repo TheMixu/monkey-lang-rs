@@ -3,8 +3,8 @@ use std::io::{self};
 use lexer::Lexer;
 use token::Token;
 
-mod ast;
 mod lexer;
+mod parser;
 mod token;
 
 fn main() {

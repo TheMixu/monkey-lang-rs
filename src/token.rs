@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Illegal,
     Eof,
@@ -12,7 +10,7 @@ pub enum Token {
     Plus,
     Minus,
     Bang,
-    Asteriks,
+    Asterisk,
     Slash,
 
     Lt,

@@ -50,7 +50,7 @@ impl<'a> Lexer<'a> {
                 }
             }
             b'/' => Token::Slash,
-            b'*' => Token::Asteriks,
+            b'*' => Token::Asterisk,
             b'<' => Token::Lt,
             b'>' => Token::Gt,
             b';' => Token::Semicolon,
