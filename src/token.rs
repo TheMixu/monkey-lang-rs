@@ -5,6 +5,7 @@ pub enum Token {
     // Identifiers + literals
     Ident(String),
     Int(i64),
+    Boolean(bool),
     // Operators
     Assign,
     Plus,
@@ -27,8 +28,6 @@ pub enum Token {
     // Keywords
     Function,
     Let,
-    True,
-    False,
     If,
     Else,
     Return,
@@ -38,8 +37,8 @@ pub fn get_keyword(word: &str) -> Token {
     match word {
         "fn" => Token::Function,
         "let" => Token::Let,
-        "true" => Token::True,
-        "false" => Token::False,
+        "true" => Token::Boolean(true),
+        "false" => Token::Boolean(false),
         "if" => Token::If,
         "else" => Token::Else,
         "return" => Token::Return,

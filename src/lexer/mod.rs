@@ -193,23 +193,24 @@ mod tests {
     }
     #[test]
     fn test_next_token() {
-        let input = r#"let five = 5;
-        let ten = 10;
-        let add = fn(x, y) {
-            x + y;
-        };
-        let result = add(five, ten);
-        !-/*5;
-        5 < 10 > 5;
-
-        5 < 10 > 5;
-        if (5 < 10) {
-            return true;
-        } else {
-            return false;
-        }`
+        let input = r#"
+        return true;
+        return false;
         "#;
-
+        let tests = [
+            Token::Return,
+            Token::Boolean(true),
+            Token::Semicolon,
+            Token::Return,
+            Token::Boolean(false),
+            Token::Semicolon,
+            Token::Eof,
+        ];
+        let mut lexer = Lexer::new(input);
+        for res in tests {
+            let curr = lexer.next_token();
+            assert_eq!(res, curr);
+        }
         //
     }
 }

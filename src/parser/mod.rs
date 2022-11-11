@@ -139,6 +139,9 @@ impl<'a> Parser<'a> {
             Token::Int(_) => self.parse_int_expr(),
             Token::Bang => self.parse_prefix_expr(),
             Token::Minus => self.parse_prefix_expr(),
+            Token::Boolean(_) => self.parse_bool_expr(),
+            Token::Lparen => self.parse_grouped_expr(),
+            Token::If => self.parse_if_expr(),
             _ => None,
         };
         // infix
@@ -159,6 +162,21 @@ impl<'a> Parser<'a> {
             }
         }
         left
+    }
+    fn parse_grouped_expr(&mut self) -> Option<Expr> {
+        self.next_token();
+        let expr = self.parse_expr(Precedence::Lowest);
+        if !self.expect_next_token(Token::Rparen) {
+            None
+        } else {
+            expr
+        }
+    }
+    fn parse_bool_expr(&mut self) -> Option<Expr> {
+        match self.curr_token {
+            Token::Boolean(b) => Some(Expr::Literal(Literal::Boolean(b))),
+            _ => None,
+        }
     }
     fn parse_ident_expr(&mut self) -> Option<Expr> {
         self.parse_ident().map(Expr::Ident)
@@ -200,6 +218,47 @@ impl<'a> Parser<'a> {
         self.next_token();
         self.parse_expr(precedence)
             .map(|expr| Expr::Infix(Box::new(left), infix, Box::new(expr)))
+    }
+    fn parse_if_expr(&mut self) -> Option<Expr> {
+        if !self.expect_next_token(Token::Lparen) {
+            return None;
+        }
+        self.next_token();
+        let cond = self.parse_expr(Precedence::Lowest);
+        if !self.expect_next_token(Token::Rparen) {
+            return None;
+        }
+        if !self.expect_next_token(Token::Lbrace) {
+            return None;
+        }
+        let consequence = self.parse_block_statement();
+        let mut alternative = None;
+
+        if self.next_token_is(&Token::Else) {
+            self.next_token();
+            if !self.next_token_is(&Token::Lbrace) {
+                return None;
+            }
+            alternative = Some(self.parse_block_statement());
+        }
+        let expr = Expr::If {
+            cond: Box::new(cond.unwrap()),
+            consequence,
+            alternative,
+        };
+        Some(expr)
+    }
+    fn parse_block_statement(&mut self) -> Vec<Statement> {
+        let mut block = Vec::new();
+        self.next_token();
+        while !self.curr_token_is(Token::Rbrace) && !self.curr_token_is(Token::Eof) {
+            let statement = self.parse_statement();
+            if let Some(val) = statement {
+                block.push(val);
+            }
+            self.next_token();
+        }
+        block
     }
 }
 
@@ -290,6 +349,8 @@ mod tests {
         let input = r#"
         !5;
         -15;
+        !true;
+        !false
         "#;
         let mut parser = Parser::new(Lexer::new(input));
         let program = parser.parse_program();
@@ -308,7 +369,21 @@ mod tests {
                 Prefix::Minus,
                 Box::new(Expr::Literal(Literal::Int(15)))
             ))
-        )
+        );
+        assert_eq!(
+            *program.get(2).unwrap(),
+            Statement::Expr(Expr::Prefix(
+                Prefix::Not,
+                Box::new(Expr::Literal(Literal::Boolean(true)))
+            ))
+        );
+        assert_eq!(
+            *program.get(3).unwrap(),
+            Statement::Expr(Expr::Prefix(
+                Prefix::Not,
+                Box::new(Expr::Literal(Literal::Boolean(false)))
+            ))
+        );
     }
     #[test]
     fn test_infix() {
@@ -321,6 +396,9 @@ mod tests {
         5 < 5
         5 == 5
         5 != 5
+        true == true
+        false == false
+        true != false
         "#;
         let mut parser = Parser::new(Lexer::new(input));
         let program = parser.parse_program();
@@ -366,10 +444,87 @@ mod tests {
                 Infix::NotEqual,
                 Box::new(Expr::Literal(Literal::Int(5))),
             )),
+            Statement::Expr(Expr::Infix(
+                Box::new(Expr::Literal(Literal::Boolean(true))),
+                Infix::Equal,
+                Box::new(Expr::Literal(Literal::Boolean(true))),
+            )),
+            Statement::Expr(Expr::Infix(
+                Box::new(Expr::Literal(Literal::Boolean(false))),
+                Infix::Equal,
+                Box::new(Expr::Literal(Literal::Boolean(false))),
+            )),
+            Statement::Expr(Expr::Infix(
+                Box::new(Expr::Literal(Literal::Boolean(true))),
+                Infix::NotEqual,
+                Box::new(Expr::Literal(Literal::Boolean(false))),
+            )),
         ];
         assert!(!program.is_empty());
         for (i, statement) in program.iter().enumerate() {
             assert_eq!(statement, test.get(i).unwrap())
         }
+    }
+    #[test]
+    fn test_grouped() {
+        let input = r#"
+        1 + (2 + 3) + 4
+        ((1 + (2 + 3)) + 4)
+        "#;
+        let mut parser = Parser::new(Lexer::new(input));
+        let program = parser.parse_program();
+        check_errors(parser);
+        assert!(!program.is_empty());
+        assert_eq!(*program.get(0).unwrap(), *program.get(1).unwrap());
+    }
+    #[test]
+    fn test_bool() {
+        let input = r#"
+        3 > 5 == false
+        ((3 > 5) == false)
+        3 < 5 == false
+        ((3 < 5) == false)
+        "#;
+        let mut parser = Parser::new(Lexer::new(input));
+        let program = parser.parse_program();
+        check_errors(parser);
+        assert!(!program.is_empty());
+        assert_eq!(*program.get(0).unwrap(), *program.get(1).unwrap());
+        assert_eq!(*program.get(2).unwrap(), *program.get(3).unwrap());
+    }
+    #[test]
+    fn test_if() {
+        let input = r#"
+        if (x < y) { x }
+        if (x < y) { x } else { y }
+        "#;
+        let mut parser = Parser::new(Lexer::new(input));
+        let program = parser.parse_program();
+        check_errors(parser);
+        assert!(!program.is_empty());
+        assert_eq!(
+            *program.get(0).unwrap(),
+            Statement::Expr(Expr::If {
+                cond: Box::new(Expr::Infix(
+                    Box::new(Expr::Ident(Ident("x".to_string()))),
+                    Infix::LessThan,
+                    Box::new(Expr::Ident(Ident("y".to_string()))),
+                )),
+                consequence: vec![Statement::Expr(Expr::Ident(Ident("x".to_string())))],
+                alternative: None
+            })
+        );
+        assert_eq!(
+            *program.get(1).unwrap(),
+            Statement::Expr(Expr::If {
+                cond: Box::new(Expr::Infix(
+                    Box::new(Expr::Ident(Ident("x".to_string()))),
+                    Infix::LessThan,
+                    Box::new(Expr::Ident(Ident("y".to_string()))),
+                )),
+                consequence: vec![Statement::Expr(Expr::Ident(Ident("x".to_string())))],
+                alternative: Some(vec![Statement::Expr(Expr::Ident(Ident("y".to_string())))])
+            })
+        );
     }
 }

@@ -26,11 +26,17 @@ pub enum Expr {
     Literal(Literal),
     Prefix(Prefix, Box<Expr>),
     Infix(Box<Expr>, Infix, Box<Expr>),
+    If {
+        cond: Box<Expr>,
+        consequence: BlockStatement,
+        alternative: Option<BlockStatement>,
+    },
 }
 #[derive(PartialEq, Clone, Debug)]
 pub enum Literal {
     Int(i64),
     String(String),
+    Boolean(bool),
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -41,6 +47,7 @@ pub enum Statement {
     Expr(Expr),
 }
 
+pub type BlockStatement = Vec<Statement>;
 pub type Program = Vec<Statement>;
 
 #[derive(PartialEq, PartialOrd)]
